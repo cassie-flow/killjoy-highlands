@@ -512,6 +512,12 @@
   <section id="courseBoard" class="screen">
     <div class="wrap">
       <div class="topbar"><button class="back" onclick="openLeaderboard()">‹ Leaderboard</button><div class="brand">⛳ Course Scores</div><span></span></div>
+      <div class="tabs" style="justify-content:center">
+        <button class="tab sel" data-cbg="overall" onclick="cbTab('overall')">Overall</button>
+        <button class="tab" data-cbg="men" onclick="cbTab('men')">Men</button>
+        <button class="tab" data-cbg="ladies" onclick="cbTab('ladies')">Ladies</button>
+        <button class="tab" data-cbg="kids" onclick="cbTab('kids')">Kids</button>
+      </div>
       <div class="panel">
         <label>Course</label>
         <select id="cbCourse" onchange="renderCourseBoard()"></select>
@@ -1013,13 +1019,19 @@ function pickFeel(el,f){document.querySelectorAll('#feelRow button').forEach(b=>
 let lbGroup='overall',lbMet='carry';
 function guestAge(g){if(!g.dob)return null;const a=Math.floor((Date.now()-new Date(g.dob))/3.15576e10);return isNaN(a)?null:a;}
 function isKid(g){const a=guestAge(g);return a!=null?a<18:!!g.isMinor;}
+function matchesGroup(g,grp){const kid=isKid(g);
+  if(grp==='kids')return kid;
+  if(grp==='men')return !kid&&g.gender==='M';
+  if(grp==='ladies')return !kid&&g.gender==='F';
+  return true;}
 function lbName(g){return `${g.first} ${(g.last||' ').charAt(0)}.`.trim();}
 function openLeaderboard(){lbGroup='overall';lbMet='carry';
   document.querySelectorAll('[data-lb]').forEach(t=>t.classList.toggle('sel',t.dataset.lb==='overall'));
   document.getElementById('lbCarry').classList.add('sel');document.getElementById('lbTotal').classList.remove('sel');
   renderLeaderboard();renderCourseRecordsPreview();go('leaderboard');}
 function renderCourseRecordsPreview(){
-  const list=DB.allRounds().map(rd=>{const hc=(houseHandicap(rd.guestId)||0)*(rd.holes==='18'?1:0.5);return {rd,net:rd.toPar-hc};})
+  const list=DB.allRounds().filter(rd=>{const g=DB.guest(rd.guestId);return g&&matchesGroup(g,lbGroup);})
+    .map(rd=>{const hc=(houseHandicap(rd.guestId)||0)*(rd.holes==='18'?1:0.5);return {rd,net:rd.toPar-hc};})
     .sort((a,b)=>a.net-b.net).slice(0,10);
   const el=document.getElementById('lbCourseRecords');
   if(!list.length){el.innerHTML='<p class="muted small">No course rounds logged yet.</p>';return;}
@@ -1031,7 +1043,7 @@ function renderCourseRecordsPreview(){
       <div class="lbface">${avatarFace(g.avatar,40)}</div>
       <div class="lbname">${escapeHtml(lbName(g))}<div class="sub2">${teeDot(rd.tee)}${escapeHtml(rd.course)} • ${holesLabel(rd.holes)}</div></div>
       <div class="lbval"><div class="big">${netStr}</div><div class="small2">net • gross ${gross}</div></div></div>`;}).join('');}
-function lbTab(g){lbGroup=g;document.querySelectorAll('[data-lb]').forEach(t=>t.classList.toggle('sel',t.dataset.lb===g));renderLeaderboard();}
+function lbTab(g){lbGroup=g;document.querySelectorAll('[data-lb]').forEach(t=>t.classList.toggle('sel',t.dataset.lb===g));renderLeaderboard();renderCourseRecordsPreview();}
 function lbMetric(m){lbMet=m;document.getElementById('lbTotal').classList.toggle('sel',m==='total');document.getElementById('lbCarry').classList.toggle('sel',m==='carry');renderLeaderboard();}
 function renderLeaderboard(){
   const titles={overall:'Overall',men:'Men',ladies:'Ladies',kids:'Kids'};
@@ -1108,16 +1120,19 @@ function renderGolfPanel(id){const hc=houseHandicap(id),n=roundsCount(id);
   document.getElementById('roundsBody').innerHTML=rounds.length?rounds.map(r=>{const tp=r.toPar===0?'E':(r.toPar>0?'+'+r.toPar:r.toPar);
     return `<div class="jentry"><div class="jd">${r.date} • ${escapeHtml(r.course)} • ${holesLabel(r.holes)}${r.tee?' • '+r.tee:''}</div><div class="jt">${r.strokes} (par ${r.par}) — <b>${tp}</b></div></div>`;}).join(''):'<p class="muted small">No rounds logged yet. Tap “Log a Golf Round”.</p>';}
 let cbHoles='18';
-function openCourseBoard(){cbHoles='18';
+let cbGroup='overall';
+function openCourseBoard(){cbHoles='18';cbGroup='overall';
   const cats=courseCatalog();const sel=document.getElementById('cbCourse');
   sel.innerHTML=cats.length?cats.map(c=>`<option value="${c.key}">${escapeHtml(c.name)}</option>`).join(''):'<option value="">No courses yet</option>';
   document.querySelectorAll('#cbHoles button').forEach(b=>b.classList.toggle('sel',b.dataset.h==='18'));
+  document.querySelectorAll('[data-cbg]').forEach(t=>t.classList.toggle('sel',t.dataset.cbg==='overall'));
   renderCourseBoard();go('courseBoard');}
 function cbPickHoles(el,h){cbHoles=h;document.querySelectorAll('#cbHoles button').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');renderCourseBoard();}
+function cbTab(grp){cbGroup=grp;document.querySelectorAll('[data-cbg]').forEach(t=>t.classList.toggle('sel',t.dataset.cbg===grp));renderCourseBoard();}
 const TEE_COLORS={Black:'#1a1a1a',Blue:'#2f6fdb',White:'#ffffff',Gold:'#d4af37',Yellow:'#f4d23c',Red:'#c0392b',Green:'#2e7d46',Junior:'#9b5cff','Par 3':'#8a8f98'};
 function teeDot(t){const c=TEE_COLORS[t]||'#8a8f98';return `<span class="teedot" title="${t||''}" style="background:${c}"></span>`;}
 function renderCourseBoard(){const key=document.getElementById('cbCourse').value;
-  const byGuest={};DB.allRounds().filter(r=>(r.courseKey||norm(r.course))===key&&r.holes===cbHoles).forEach(r=>{
+  const byGuest={};DB.allRounds().filter(r=>{if((r.courseKey||norm(r.course))!==key||r.holes!==cbHoles)return false;const g=DB.guest(r.guestId);return g&&matchesGroup(g,cbGroup);}).forEach(r=>{
     const hcpAdj=(houseHandicap(r.guestId)||0)*(cbHoles==='18'?1:0.5);
     const val=r.toPar-hcpAdj;const ex=byGuest[r.guestId];
     if(!ex||val<ex.val)byGuest[r.guestId]={r,val};});
