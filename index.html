@@ -305,7 +305,6 @@
           <div><label>Phone number *</label><input type="tel" id="phone" inputmode="numeric" placeholder="(615) 000-0000"></div>
         </div>
         <label>Email (optional)</label><input type="email" id="email" placeholder="email@example.com">
-        <label>Emergency contact — name &amp; phone *</label><input type="text" id="emergency" placeholder="Full name — (615) 000-0000">
         <label>Gender *</label>
         <select id="gender"><option value="">Select…</option><option value="M">Male</option><option value="F">Female</option></select>
         <label class="ck" style="margin-top:14px"><input type="checkbox" id="newMinor" onchange="onMinorToggle()"> <span>Participant is under 18 years of age</span></label>
@@ -422,7 +421,12 @@
         <div id="lbList"></div>
         <p class="muted small" id="lbEmpty" style="display:none">No scores logged yet for this board.</p>
       </div>
-      <button class="btn lg navy block" onclick="openCourseBoard()">⛳ Course Scoreboards ›</button>
+      <div class="panel">
+        <h2 style="margin-bottom:2px">⛳ Course Records</h2>
+        <p class="muted small" style="margin:0 0 8px">Top 10 net rounds across all courses (house handicap). Dot = tee played.</p>
+        <div id="lbCourseRecords"></div>
+      </div>
+      <button class="btn lg navy block" onclick="openCourseBoard()">Course Scoreboards — deep dive by course ›</button>
     </div>
   </section>
 
@@ -830,7 +834,7 @@ function buildAvatars(){const g=document.getElementById('avatarGrid');g.innerHTM
   AV_PNG_KEYS.forEach((k)=>{const d=document.createElement('div');d.className='av'+(k===state.newAvatar?' sel':'');d.innerHTML=avatarFace(k,72);
     d.onclick=()=>{document.querySelectorAll('#avatarGrid .av').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');state.newAvatar=k;};g.appendChild(d);});}
 function openNewGuest(){
-  ['fName','lName','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
+  ['fName','lName','phone','email'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('gender').value='';
   document.getElementById('newMinor').checked=false;
   resetDob();
@@ -859,19 +863,17 @@ function saveNewGuest(){
   const dobY=document.getElementById('dobY').value,dobM=document.getElementById('dobM').value,dobD=document.getElementById('dobD').value;
   const phone=document.getElementById('phone').value.trim();
   const email=document.getElementById('email').value.trim();
-  const emergency=document.getElementById('emergency').value.trim();
   const gender=document.getElementById('gender').value;
   const isMinor=document.getElementById('newMinor').checked;
   if(!first||!last){alert('Please enter first and last name.');return;}
   if(!dobM||!dobD){alert('Please choose the full birthdate (year, month and day).');return;}
   const dob=`${dobY}-${dobM}-${dobD}`;
   if(digits(phone).length<10){alert('Please enter a 10-digit phone number.');return;}
-  if(!emergency){alert('Please enter an emergency contact.');return;}
   if(!gender){alert('Please select a gender.');return;}
   if(!state.newAvatar){alert('Please pick an avatar.');return;}
   const avatar=state.newAvatar;
-  const g=DB.addGuest({first,last,dob,phone,email,emergency,gender,isMinor,avatar});
-  ['fName','lName','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
+  const g=DB.addGuest({first,last,dob,phone,email,gender,isMinor,avatar});
+  ['fName','lName','phone','email'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('gender').value='';document.getElementById('newMinor').checked=false;
   chooseGuest(g.id);
 }
@@ -1015,7 +1017,20 @@ function lbName(g){return `${g.first} ${(g.last||' ').charAt(0)}.`.trim();}
 function openLeaderboard(){lbGroup='overall';lbMet='carry';
   document.querySelectorAll('[data-lb]').forEach(t=>t.classList.toggle('sel',t.dataset.lb==='overall'));
   document.getElementById('lbCarry').classList.add('sel');document.getElementById('lbTotal').classList.remove('sel');
-  renderLeaderboard();go('leaderboard');}
+  renderLeaderboard();renderCourseRecordsPreview();go('leaderboard');}
+function renderCourseRecordsPreview(){
+  const list=DB.allRounds().map(rd=>{const hc=(houseHandicap(rd.guestId)||0)*(rd.holes==='18'?1:0.5);return {rd,net:rd.toPar-hc};})
+    .sort((a,b)=>a.net-b.net).slice(0,10);
+  const el=document.getElementById('lbCourseRecords');
+  if(!list.length){el.innerHTML='<p class="muted small">No course rounds logged yet.</p>';return;}
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML=list.map((o,i)=>{const rd=o.rd;const g=DB.guest(rd.guestId);if(!g)return '';
+    const gross=rd.toPar===0?'E':(rd.toPar>0?'+'+rd.toPar:rd.toPar);
+    const nv=Math.round(o.net*10)/10;const netStr=nv===0?'E':(nv>0?'+'+nv:''+nv);
+    return `<div class="lbrow ${i<3?'t'+(i+1):''}"><div class="lbrank">${i<3?medals[i]:(i+1)}</div>
+      <div class="lbface">${avatarFace(g.avatar,40)}</div>
+      <div class="lbname">${escapeHtml(lbName(g))}<div class="sub2">${teeDot(rd.tee)}${escapeHtml(rd.course)} • ${holesLabel(rd.holes)}</div></div>
+      <div class="lbval"><div class="big">${netStr}</div><div class="small2">net • gross ${gross}</div></div></div>`;}).join('');}
 function lbTab(g){lbGroup=g;document.querySelectorAll('[data-lb]').forEach(t=>t.classList.toggle('sel',t.dataset.lb===g));renderLeaderboard();}
 function lbMetric(m){lbMet=m;document.getElementById('lbTotal').classList.toggle('sel',m==='total');document.getElementById('lbCarry').classList.toggle('sel',m==='carry');renderLeaderboard();}
 function renderLeaderboard(){
