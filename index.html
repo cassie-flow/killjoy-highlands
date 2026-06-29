@@ -143,6 +143,7 @@
   .lbval .big{font-family:var(--serif);font-size:24px;font-weight:700;color:var(--navy)}
   .lbval .small2{font-size:11px;color:var(--muted)}
   .medal{font-size:22px;width:40px;text-align:center;flex-shrink:0}
+  .teedot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.4);vertical-align:middle;margin-right:5px}
   /* course autocomplete */
   .sugbox{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:2px solid var(--gold);border-radius:12px;box-shadow:var(--shadow);z-index:20;overflow:hidden}
   .sug{padding:14px 16px;font-size:17px;font-weight:600;color:var(--navy);cursor:pointer;border-bottom:1px solid var(--line)}
@@ -300,13 +301,13 @@
           <div><label>Last name *</label><input type="text" id="lName" autocomplete="off"></div>
         </div>
         <div class="row">
-          <div><label>Date of birth *</label><input type="date" id="dob"></div>
+          <div><label>Date of birth *</label><div style="display:flex;gap:8px"><select id="dobY"></select><select id="dobM"></select><select id="dobD"></select></div></div>
           <div><label>Phone number *</label><input type="tel" id="phone" inputmode="numeric" placeholder="(615) 000-0000"></div>
         </div>
         <label>Email (optional)</label><input type="email" id="email" placeholder="email@example.com">
         <label>Emergency contact — name &amp; phone *</label><input type="text" id="emergency" placeholder="Full name — (615) 000-0000">
-        <label>Gender (for leaderboards)</label>
-        <select id="gender"><option value="">Prefer not to say</option><option value="M">Male</option><option value="F">Female</option></select>
+        <label>Gender *</label>
+        <select id="gender"><option value="">Select…</option><option value="M">Male</option><option value="F">Female</option></select>
         <label class="ck" style="margin-top:14px"><input type="checkbox" id="newMinor" onchange="onMinorToggle()"> <span>Participant is under 18 years of age</span></label>
         <button class="btn block lg" style="margin-top:18px" onclick="saveNewGuest()">Save &amp; Continue ›</button>
       </div>
@@ -496,6 +497,8 @@
           <div><label>Par</label><input type="number" id="rPar" inputmode="numeric" placeholder="e.g. 72"></div>
           <div><label>Your total strokes</label><input type="number" id="rStrokes" inputmode="numeric" placeholder="e.g. 84"></div>
         </div>
+        <label>Tee played *</label>
+        <select id="rTee"><option value="">Select tee…</option><option>Black</option><option>Blue</option><option>White</option><option>Gold</option><option>Yellow</option><option>Red</option><option>Green</option><option>Junior</option><option>Par 3</option></select>
         <button class="btn block lg" style="margin-top:18px" onclick="saveGolfRound()">Save Round</button>
       </div>
     </div>
@@ -513,11 +516,7 @@
           <button data-h="F9" onclick="cbPickHoles(this,'F9')">Front 9</button>
           <button data-h="B9" onclick="cbPickHoles(this,'B9')">Back 9</button>
         </div>
-        <div class="feel" id="cbMode" style="gap:10px;margin-top:8px">
-          <button class="sel" onclick="cbSetMode(this,'gross')">Gross</button>
-          <button onclick="cbSetMode(this,'net')">Net (handicap)</button>
-        </div>
-        <p class="muted small" style="margin:8px 0 0" id="cbModeHint">Gross = actual score to par. Net subtracts each player\'s house handicap to show who played best <i>relative to their ability</i>.</p>
+        <p class="muted small" style="margin:10px 0 0">Top 10 — ranked by net score (house handicap), all tees combined. The dot shows the tee played.</p>
         <div id="cbList" style="margin-top:14px"></div>
         <p class="muted small" id="cbEmpty" style="display:none">No scores logged for this course/holes yet.</p>
       </div>
@@ -831,14 +830,22 @@ function buildAvatars(){const g=document.getElementById('avatarGrid');g.innerHTM
   AV_PNG_KEYS.forEach((k)=>{const d=document.createElement('div');d.className='av'+(k===state.newAvatar?' sel':'');d.innerHTML=avatarFace(k,72);
     d.onclick=()=>{document.querySelectorAll('#avatarGrid .av').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');state.newAvatar=k;};g.appendChild(d);});}
 function openNewGuest(){
-  ['fName','lName','dob','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
+  ['fName','lName','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('gender').value='';
   document.getElementById('newMinor').checked=false;
-  state.newAvatar=AV_PNG_KEYS[0];
+  resetDob();
+  state.newAvatar='';
   document.getElementById('avatarPanel').style.display='block';
   buildAvatars();
   go('newGuest');
 }
+function fillDob(){const y=document.getElementById('dobY'),m=document.getElementById('dobM'),d=document.getElementById('dobD');
+  if(!y||y.options.length)return;
+  const now=new Date().getFullYear();let yo='';for(let yr=now;yr>=1935;yr--)yo+=`<option value="${yr}"${yr===1985?' selected':''}>${yr}</option>`;y.innerHTML=yo;
+  const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  m.innerHTML='<option value="">Month</option>'+mn.map((nm,i)=>`<option value="${String(i+1).padStart(2,'0')}">${nm}</option>`).join('');
+  let dd='<option value="">Day</option>';for(let i=1;i<=31;i++)dd+=`<option value="${String(i).padStart(2,'0')}">${i}</option>`;d.innerHTML=dd;}
+function resetDob(){fillDob();var y=document.getElementById('dobY');if(y)y.value='1985';document.getElementById('dobM').value='';document.getElementById('dobD').value='';}
 function startNewWithPhone(){openNewGuest();document.getElementById('phone').value=fmtPhone(state.phone);}
 function onMinorToggle(){/* avatars are available to everyone now */}
 function openAvatarPicker(id){const g=DB.guest(id);if(!g)return;
@@ -849,18 +856,22 @@ function setProfileAvatar(id,key){DB.updateGuest(id,{avatar:key,photo:null});clo
 function saveNewGuest(){
   const first=document.getElementById('fName').value.trim();
   const last=document.getElementById('lName').value.trim();
-  const dob=document.getElementById('dob').value;
+  const dobY=document.getElementById('dobY').value,dobM=document.getElementById('dobM').value,dobD=document.getElementById('dobD').value;
   const phone=document.getElementById('phone').value.trim();
   const email=document.getElementById('email').value.trim();
   const emergency=document.getElementById('emergency').value.trim();
   const gender=document.getElementById('gender').value;
   const isMinor=document.getElementById('newMinor').checked;
   if(!first||!last){alert('Please enter first and last name.');return;}
+  if(!dobM||!dobD){alert('Please choose the full birthdate (year, month and day).');return;}
+  const dob=`${dobY}-${dobM}-${dobD}`;
   if(digits(phone).length<10){alert('Please enter a 10-digit phone number.');return;}
   if(!emergency){alert('Please enter an emergency contact.');return;}
-  const avatar=state.newAvatar||AV_PNG_KEYS[0];
+  if(!gender){alert('Please select a gender.');return;}
+  if(!state.newAvatar){alert('Please pick an avatar.');return;}
+  const avatar=state.newAvatar;
   const g=DB.addGuest({first,last,dob,phone,email,emergency,gender,isMinor,avatar});
-  ['fName','lName','dob','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
+  ['fName','lName','phone','email','emergency'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('gender').value='';document.getElementById('newMinor').checked=false;
   chooseGuest(g.id);
 }
@@ -1051,7 +1062,7 @@ function pickHoles(el,h){document.querySelectorAll('#holesRow button').forEach(b
   const c=courseCatalog().find(x=>x.key===norm(document.getElementById('rCourse').value));const parEl=document.getElementById('rPar');
   if(c&&c.par[h]!=null)parEl.value=c.par[h];else if(!parEl.value)parEl.value=(h==='18'?72:36);}
 function openRoundEntry(){state.rHoles='18';
-  document.getElementById('rCourse').value='';document.getElementById('rPar').value='72';document.getElementById('rStrokes').value='';
+  document.getElementById('rCourse').value='';document.getElementById('rPar').value='72';document.getElementById('rStrokes').value='';document.getElementById('rTee').value='';
   document.getElementById('courseSug').style.display='none';
   document.querySelectorAll('#holesRow button').forEach(b=>b.classList.toggle('sel',b.dataset.h==='18'));
   const g=DB.guest(state.logGuestId);document.getElementById('roundWho').textContent=`Log a Golf Round — ${g?g.first:''}`;
@@ -1060,12 +1071,14 @@ function saveGolfRound(){const id=state.logGuestId;
   const course=document.getElementById('rCourse').value.trim();
   const par=Number(document.getElementById('rPar').value);
   const strokes=Number(document.getElementById('rStrokes').value);
+  const tee=document.getElementById('rTee').value;
   const holes=state.rHoles||'18';
   if(!course){alert('Please enter a course name.');return;}
   if(!par){alert('Please enter the course par.');return;}
   if(!strokes){alert('Please enter your total strokes.');return;}
+  if(!tee){alert('Please select the tee you played.');return;}
   const toPar=strokes-par;const diff18=holes==='18'?toPar:toPar*2;
-  DB.addRound({guestId:id,date:today(),course,courseKey:norm(course),holes,par,strokes,toPar,diff18});
+  DB.addRound({guestId:id,date:today(),course,courseKey:norm(course),holes,par,strokes,tee,toPar,diff18});
   const hc=houseHandicap(id),n=roundsCount(id);
   const tp=toPar===0?'Even par':(toPar>0?'+'+toPar:''+toPar);
   showPopup(`<h2>Round logged ⛳</h2><p class="muted" style="margin:6px 0 0">${escapeHtml(course)} • ${holesLabel(holes)}<br><b>${strokes}</b> on a par ${par} — <b>${tp}</b></p>${hc!=null?`<div class="note" style="margin-top:12px">House handicap: <b>${hc>0?'+'+hc:hc}</b>${n<3?` <span class="small">(provisional — ${n} of 3 rounds)</span>`:''}</div>`:''}<button class="btn block lg" style="margin-top:16px" onclick="closePopup();openLog('${id}')">Done</button>`);}
@@ -1078,35 +1091,31 @@ function renderGolfPanel(id){const hc=houseHandicap(id),n=roundsCount(id);
   document.getElementById('hcLbl').textContent=(n>0&&n<3)?'House HCP (prov.)':'House HCP';
   const rounds=DB.roundsFor(id).slice(0,8);
   document.getElementById('roundsBody').innerHTML=rounds.length?rounds.map(r=>{const tp=r.toPar===0?'E':(r.toPar>0?'+'+r.toPar:r.toPar);
-    return `<div class="jentry"><div class="jd">${r.date} • ${escapeHtml(r.course)} • ${holesLabel(r.holes)}</div><div class="jt">${r.strokes} (par ${r.par}) — <b>${tp}</b></div></div>`;}).join(''):'<p class="muted small">No rounds logged yet. Tap “Log a Golf Round”.</p>';}
+    return `<div class="jentry"><div class="jd">${r.date} • ${escapeHtml(r.course)} • ${holesLabel(r.holes)}${r.tee?' • '+r.tee:''}</div><div class="jt">${r.strokes} (par ${r.par}) — <b>${tp}</b></div></div>`;}).join(''):'<p class="muted small">No rounds logged yet. Tap “Log a Golf Round”.</p>';}
 let cbHoles='18';
-let cbMode='gross';
-function openCourseBoard(){cbHoles='18';cbMode='gross';
+function openCourseBoard(){cbHoles='18';
   const cats=courseCatalog();const sel=document.getElementById('cbCourse');
   sel.innerHTML=cats.length?cats.map(c=>`<option value="${c.key}">${escapeHtml(c.name)}</option>`).join(''):'<option value="">No courses yet</option>';
   document.querySelectorAll('#cbHoles button').forEach(b=>b.classList.toggle('sel',b.dataset.h==='18'));
-  document.querySelectorAll('#cbMode button').forEach((b,i)=>b.classList.toggle('sel',i===0));
   renderCourseBoard();go('courseBoard');}
 function cbPickHoles(el,h){cbHoles=h;document.querySelectorAll('#cbHoles button').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');renderCourseBoard();}
-function cbSetMode(el,m){cbMode=m;document.querySelectorAll('#cbMode button').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');renderCourseBoard();}
+const TEE_COLORS={Black:'#1a1a1a',Blue:'#2f6fdb',White:'#ffffff',Gold:'#d4af37',Yellow:'#f4d23c',Red:'#c0392b',Green:'#2e7d46',Junior:'#9b5cff','Par 3':'#8a8f98'};
+function teeDot(t){const c=TEE_COLORS[t]||'#8a8f98';return `<span class="teedot" title="${t||''}" style="background:${c}"></span>`;}
 function renderCourseBoard(){const key=document.getElementById('cbCourse').value;
-  const net=cbMode==='net';
   const byGuest={};DB.allRounds().filter(r=>(r.courseKey||norm(r.course))===key&&r.holes===cbHoles).forEach(r=>{
-    const hcpAdj=net?((houseHandicap(r.guestId)||0)*(cbHoles==='18'?1:0.5)):0;
+    const hcpAdj=(houseHandicap(r.guestId)||0)*(cbHoles==='18'?1:0.5);
     const val=r.toPar-hcpAdj;const ex=byGuest[r.guestId];
     if(!ex||val<ex.val)byGuest[r.guestId]={r,val};});
-  const rows=Object.values(byGuest).sort((a,b)=>a.val-b.val);
+  const rows=Object.values(byGuest).sort((a,b)=>a.val-b.val).slice(0,10);
   document.getElementById('cbEmpty').style.display=rows.length?'none':'block';
   const medals=['🥇','🥈','🥉'];
   document.getElementById('cbList').innerHTML=rows.map((o,i)=>{const r=o.r;const g=DB.guest(r.guestId);if(!g)return '';
     const gross=r.toPar===0?'E':(r.toPar>0?'+'+r.toPar:r.toPar);
     const nv=Math.round(o.val*10)/10;const netStr=nv===0?'E':(nv>0?'+'+nv:''+nv);
-    const big=net?netStr:gross;
-    const small=net?`net • gross ${gross} (${r.strokes})`:`${r.strokes} strokes`;
     return `<div class="lbrow ${i<3?'t'+(i+1):''}"><div class="lbrank">${i<3?medals[i]:(i+1)}</div>
       <div class="lbface">${avatarFace(g.avatar,46)}</div>
-      <div class="lbname">${escapeHtml(lbName(g))}${isKid(g)?' <span class="sub2">jr</span>':''}<div class="sub2">${r.date}</div></div>
-      <div class="lbval"><div class="big">${big}</div><div class="small2">${small}</div></div></div>`;}).join('');}
+      <div class="lbname">${escapeHtml(lbName(g))}${isKid(g)?' <span class="sub2">jr</span>':''}<div class="sub2">${teeDot(r.tee)}${r.tee||'—'} • ${r.date}</div></div>
+      <div class="lbval"><div class="big">${netStr}</div><div class="small2">net • gross ${gross}</div></div></div>`;}).join('');}
 
 function saveRound(out){const id=state.logGuestId;
   // Make sure there's a visit to attach to — never let a score silently vanish.
@@ -1289,7 +1298,7 @@ function saveCloud(){DB.saveSettings({cloudUrl:document.getElementById('setCloud
   cloudRenderStatus();cloudSyncNow();}
 
 /* init */
-buildKeypad();buildAvatars();updatePhone();bindSig();applyBranding();
+buildKeypad();buildAvatars();updatePhone();bindSig();applyBranding();fillDob();
 (function(){var fi=document.getElementById('favicon'),fk=document.querySelector('.fab img');if(fi&&fk)fi.href=fk.src;})();
 /* Kiosk auto-reset: after 90s idle, return to the welcome screen (skips Admin so host work isn't interrupted). */
 let _idleT=null;
