@@ -144,6 +144,7 @@
   .lbval .small2{font-size:11px;color:var(--muted)}
   .medal{font-size:22px;width:40px;text-align:center;flex-shrink:0}
   .teedot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.4);vertical-align:middle;margin-right:5px}
+  #toast{display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:12px;font-weight:700;z-index:90;box-shadow:var(--shadow);max-width:90%}
   /* course autocomplete */
   .sugbox{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:2px solid var(--gold);border-radius:12px;box-shadow:var(--shadow);z-index:20;overflow:hidden}
   .sug{padding:14px 16px;font-size:17px;font-weight:600;color:var(--navy);cursor:pointer;border-bottom:1px solid var(--line)}
@@ -445,6 +446,7 @@
           <button class="btn sm ghost" onclick="openAvatarPicker(state.logGuestId)">Change Avatar</button>
         </div>
         <div class="records" id="recordsRow" style="margin-top:10px"></div>
+        <button class="btn sm ghost block" style="margin-top:12px" onclick="openRise(state.logGuestId)">📋 Enter Player Data in RISE ›</button>
       </div>
       <div class="panel">
         <h2 id="logWho">Today's stats</h2>
@@ -981,7 +983,11 @@ function renderHere(){autoSignOut();const open=DB.openVisits();const list=docume
     c.innerHTML=`<div class="face">${face(g)}</div><div class="nm" style="font-weight:800;color:var(--navy)">${fullName(g)}</div>
       ${g.photoOptOut?'<div class="flag" style="margin:6px 0">📷🚫 No filming</div>':''}
       <div class="muted small">In since ${v.time} • ${v.reason}</div>
-      <button class="btn sm block navy" style="margin-top:10px" onclick="openLog('${v.guestId}')">My Stats &amp; Records</button>`;list.appendChild(c);});}
+      ${g.roomControls?`<div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn sm" style="flex:1;font-size:20px" onclick="playerMusic('${g.id}')" title="Play my playlist">🎵</button>
+        <button class="btn sm" style="flex:1;font-size:20px" onclick="playerLight('${g.id}')" title="My lighting">💡</button>
+      </div>`:''}
+      <button class="btn sm block navy" style="margin-top:8px" onclick="openLog('${v.guestId}')">My Stats &amp; Records</button>`;list.appendChild(c);});}
 function bestStat(id,field){const vals=DB.visitsFor(id).map(v=>v[field]).filter(x=>x!=null);return vals.length?Math.max(...vals):null;}
 /* visits excluding the current open (today's) session */
 function priorVisits(id){const op=DB.openVisitFor(id);return DB.visitsFor(id).filter(v=>!op||v.id!==op.id);}
@@ -1110,6 +1116,19 @@ function saveGolfRound(){const id=state.logGuestId;
   const tp=toPar===0?'Even par':(toPar>0?'+'+toPar:''+toPar);
   showPopup(`<h2>Round logged ⛳</h2><p class="muted" style="margin:6px 0 0">${escapeHtml(course)} • ${holesLabel(holes)}<br><b>${strokes}</b> on a par ${par} — <b>${tp}</b></p>${hc!=null?`<div class="note" style="margin-top:12px">House handicap: <b>${hc>0?'+'+hc:hc}</b>${n<3?` <span class="small">(provisional — ${n} of 3 rounds)</span>`:''}</div>`:''}<button class="btn block lg" style="margin-top:16px" onclick="closePopup();openLog('${id}')">Done</button>`);}
 function roundsCount(id){return DB.roundsFor(id).length;}
+function openRise(id){const g=DB.guest(id);const url=(g&&isKid(g))?'https://rise.tekbud.com/kids':'https://rise.tekbud.com/';window.open(url,'_blank');}
+function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t);}t.textContent=msg;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(function(){t.style.display='none';},2800);}
+function goveeScene(scene,who){const c=cloudCfg();if(!c){toast('Not connected');return;}
+  toast((who?who+': ':'')+'setting lights…');
+  fetch(c.url+'/functions/v1/govee',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'scene',scene})})
+    .then(r=>r.json()).then(j=>toast(j&&j.ok?('✓ Lights: '+scene):'Lights error — try again'))
+    .catch(()=>toast('Lights error (check internet)'));}
+function playerLight(id){const g=DB.guest(id);if(!g)return;goveeScene(g.lightScene||'play',g.first);}
+function playerMusic(id){const g=DB.guest(id);if(!g)return;if(!g.sonosFav){toast('No playlist set for '+g.first+' — add it in Admin');return;}sonosPlay(g.sonosFav,g.first);}
+function sonosPlay(fav,who){const c=cloudCfg();if(!c){toast('Not connected');return;}
+  toast((who?who+': ':'')+'starting music…');
+  fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'play',favorite:fav})})
+    .then(r=>r.ok?r.json():Promise.reject()).then(j=>toast(j&&j.ok?('🎵 Playing '+fav):'Music error')).catch(()=>toast('Sonos isn\'t set up yet'));}
 function houseHandicap(id){const diffs=DB.roundsFor(id).map(r=>r.diff18).filter(x=>x!=null);if(!diffs.length)return null;
   const last20=diffs.slice(0,20).slice().sort((a,b)=>a-b);const n=Math.min(8,last20.length);
   const avg=last20.slice(0,n).reduce((s,x)=>s+x,0)/n;return Math.round(avg*10)/10;}
@@ -1208,6 +1227,7 @@ function editGuest(id){const g=DB.guest(id);const visits=DB.visitsFor(id);
     <label>Emergency contact</label><input id="eEm" value="${g.emergency||''}">
     <div class="row"><div><label>Gender (leaderboards)</label><select id="eG"><option value=""${!g.gender?' selected':''}>Prefer not to say</option><option value="M"${g.gender==='M'?' selected':''}>Male</option><option value="F"${g.gender==='F'?' selected':''}>Female</option></select></div><div><label>Minor</label><select id="eMin"><option value="no"${!g.isMinor?' selected':''}>Adult (18+)</option><option value="yes"${g.isMinor?' selected':''}>Under 18</option></select></div></div>
     <label class="ck" style="margin-top:8px"><input type="checkbox" id="eRoom"${g.roomControls?' checked':''}> <span>Allow <b>room controls</b> (music &amp; lights) for this player</span></label>
+    <div class="row"><div><label>Preferred light scene</label><select id="eLight"><option value="play"${(g.lightScene||'play')==='play'?' selected':''}>Play</option><option value="chill"${g.lightScene==='chill'?' selected':''}>Chill</option><option value="arcade"${g.lightScene==='arcade'?' selected':''}>Arcade</option><option value="off"${g.lightScene==='off'?' selected':''}>Off</option></select></div><div><label>Sonos Favorite (playlist)</label><input id="eSonos" value="${g.sonosFav||''}" placeholder="e.g. Jason's Mix"></div></div>
     <div class="note">Best carry: <b>${bestC!=null?bestC+' yds':'—'}</b> • Best total: <b>${bestT!=null?bestT+' yds':'—'}</b> • Visits: <b>${visits.length}</b> • Waiver: <b>${g.waiverVer===DB.settings().waiverVer?'Signed '+(g.waiverDate||''):'Not current'}</b>${g.isMinor?` • Guardian: <b>${escapeHtml(g.guardianName||'—')}${g.guardianRelation?' ('+escapeHtml(g.guardianRelation)+')':''}</b>`:''}</div>
     ${g.waiverSig?`<label>Signature on file (v${g.waiverVer}, ${g.waiverDate})</label><img src="${g.waiverSig}" style="width:100%;max-height:120px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff">`:''}
     ${(g.waiverSignings&&g.waiverSignings.length)?`<button class="btn sm ghost block" style="margin-top:10px" onclick="viewWaiverRecord('${id}')">📄 View signed waiver record (${g.waiverSignings.length})</button>`:''}
@@ -1225,7 +1245,7 @@ function uploadPhoto(id,input){const f=input.files[0];if(!f)return;const r=new F
 function saveGuestEdit(id){DB.updateGuest(id,{first:document.getElementById('eF').value.trim(),last:document.getElementById('eL').value.trim(),
   dob:document.getElementById('eD').value,phone:document.getElementById('eP').value.trim(),email:document.getElementById('eE').value.trim(),emergency:document.getElementById('eEm').value.trim(),
   gender:document.getElementById('eG').value,isMinor:document.getElementById('eMin').value==='yes',
-  roomControls:document.getElementById('eRoom').checked});closeModal();renderGuests();}
+  roomControls:document.getElementById('eRoom').checked,lightScene:document.getElementById('eLight').value,sonosFav:document.getElementById('eSonos').value.trim()});closeModal();renderGuests();}
 function closeModal(){document.getElementById('modal').style.display='none';}
 function renderAdminHere(){autoSignOut();const open=DB.openVisits();const wrap=document.getElementById('adminHere');wrap.innerHTML='';
   document.getElementById('adminHereEmpty').style.display=open.length?'none':'block';
