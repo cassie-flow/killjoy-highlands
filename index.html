@@ -256,6 +256,7 @@
       <button class="btn lg outline" style="max-width:520px;letter-spacing:1.5px;text-transform:uppercase" onclick="openLeaderboard()">🏆 Leaderboard</button>
       <div id="nowPlaying" style="display:none;max-width:520px;width:100%;margin:18px auto 0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:14px 18px;color:#fff">
         <div style="display:flex;align-items:center;gap:12px">
+          <img id="npArt" style="display:none;width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">
           <div style="flex:1;min-width:0;text-align:left">
             <div id="npTrack" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
             <div id="npArtist" class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
@@ -1200,6 +1201,8 @@ function npPoll(){if(!document.getElementById('home').classList.contains('active
     el.style.display='block';
     document.getElementById('npTrack').textContent=j.track||'—';
     document.getElementById('npArtist').textContent=j.artist||'—';
+    const art=document.getElementById('npArt');
+    if(j.imageUrl){art.src=j.imageUrl;art.style.display='block';}else{art.style.display='none';}
     if(!_npVolDrag&&j.volume!=null)document.getElementById('npVolume').value=j.volume;
   }).catch(()=>{});}
 function npControl(action){_npCall(action).then(()=>setTimeout(npPoll,600)).catch(()=>toast('Sonos control error'));}
