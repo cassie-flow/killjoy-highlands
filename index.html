@@ -254,6 +254,21 @@
       <button class="btn lg outline" style="max-width:520px;letter-spacing:1.5px;text-transform:uppercase" onclick="openNewGuest()">New Guest — Create Profile</button>
       <button class="btn lg navy" style="max-width:520px;letter-spacing:1.5px;text-transform:uppercase" onclick="renderHere();go('here')">Who's Playing Now</button>
       <button class="btn lg outline" style="max-width:520px;letter-spacing:1.5px;text-transform:uppercase" onclick="openLeaderboard()">🏆 Leaderboard</button>
+      <div id="nowPlaying" style="display:none;max-width:520px;width:100%;margin:18px auto 0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:14px 18px;color:#fff">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0;text-align:left">
+            <div id="npTrack" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+            <div id="npArtist" class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+          </div>
+          <button class="btn sm ghost" onclick="npControl('previous')" title="Previous">⏮</button>
+          <button class="btn sm ghost" onclick="npControl('toggle')" title="Play/Pause">⏯</button>
+          <button class="btn sm ghost" onclick="npControl('next')" title="Next">⏭</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <span style="font-size:13px">🔉</span>
+          <input type="range" id="npVolume" min="0" max="100" value="30" style="flex:1" onchange="npSetVolume(this.value)">
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1171,6 +1186,26 @@ function _sonosPickConfirm(fav,who){
   closeModal();
   sonosPlay(fav,who,rooms);
 }
+function _npRooms(){let saved=null;try{saved=JSON.parse(localStorage.getItem('sonosLastRooms')||'null');}catch(e){}
+  if(saved&&saved.length)return saved;
+  const d=DB.settings().masterSonosRoom;return d?[d]:[];}
+function _npCall(action,extra){const c=cloudCfg();if(!c)return Promise.reject();
+  return fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify(Object.assign({action,rooms:_npRooms()},extra||{}))}).then(r=>r.json());}
+let _npTimer=null,_npVolDrag=false;
+function npPoll(){if(!document.getElementById('home').classList.contains('active')){return;}
+  if(!_npRooms().length){document.getElementById('nowPlaying').style.display='none';return;}
+  _npCall('status').then(j=>{
+    const el=document.getElementById('nowPlaying');
+    if(!j||j.error||!j.track){el.style.display='none';return;}
+    el.style.display='block';
+    document.getElementById('npTrack').textContent=j.track||'—';
+    document.getElementById('npArtist').textContent=j.artist||'—';
+    if(!_npVolDrag&&j.volume!=null)document.getElementById('npVolume').value=j.volume;
+  }).catch(()=>{});}
+function npControl(action){_npCall(action).then(()=>setTimeout(npPoll,600)).catch(()=>toast('Sonos control error'));}
+function npSetVolume(v){_npCall('volume',{volume:Number(v)}).catch(()=>{});}
+document.getElementById('npVolume')&&(document.getElementById('npVolume').oninput=()=>{_npVolDrag=true;clearTimeout(window._npVolT);window._npVolT=setTimeout(()=>_npVolDrag=false,1500);});
+setInterval(npPoll,8000);
 let _sonosRooms=null,_sonosFavorites=null;
 function loadSonosMeta(cb){if(_sonosRooms&&_sonosFavorites){cb&&cb();return;}const c=cloudCfg();if(!c){cb&&cb();return;}
   fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'list'})})
