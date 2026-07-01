@@ -276,9 +276,9 @@
             <div id="npArtist" class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
           </div>
           <div class="npControls" style="display:flex;gap:8px">
-            <button class="btn sm ghost" onclick="npControl('previous')" title="Previous">⏮</button>
-            <button class="btn sm ghost" onclick="npControl('toggle')" title="Play/Pause">⏯</button>
-            <button class="btn sm ghost" onclick="npControl('next')" title="Next">⏭</button>
+            <button class="btn sm ghost" onclick="npControl('previous')" title="Previous"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM20 6L10 12l10 6z"/></svg></button>
+            <button class="btn sm ghost" onclick="npControl('toggle')" title="Play/Pause"><svg id="npPlayIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <button class="btn sm ghost" onclick="npControl('next')" title="Next"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM4 6l10 6-10 6z"/></svg></button>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
@@ -1220,6 +1220,8 @@ function npPoll(){if(!document.getElementById('home').classList.contains('active
     const art=document.getElementById('npArt');
     if(j.imageUrl){art.src=j.imageUrl;art.style.display='block';}else{art.style.display='none';}
     if(!_npVolDrag&&j.volume!=null)document.getElementById('npVolume').value=j.volume;
+    const playIcon=document.getElementById('npPlayIcon');
+    if(playIcon)playIcon.innerHTML=(j.playbackState==='PLAYBACK_STATE_PLAYING')?'<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>';
   }).catch(()=>{});}
 function npControl(action){_npCall(action).then(()=>setTimeout(npPoll,600)).catch(()=>toast('Sonos control error'));}
 function npSetVolume(v){_npCall('volume',{volume:Number(v)}).catch(()=>{});}
