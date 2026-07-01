@@ -1141,13 +1141,36 @@ function populateLightScenes(selId,current){const sel=document.getElementById(se
   let html=presets.map(p=>`<option value="${p[0]}"${current===p[0]?' selected':''}>${p[1]}</option>`).join('');
   if(extra.length)html+='<optgroup label="Your Govee effects">'+extra.map(n=>`<option value="${escapeHtml(n)}"${current===n?' selected':''}>${escapeHtml(n)}</option>`).join('')+'</optgroup>';
   sel.innerHTML=html;}
-function playerMusic(id){const g=DB.guest(id);if(!g)return;if(!g.sonosFav){toast('No playlist set for '+g.first+' — add it in Admin');return;}sonosPlay(g.sonosFav,g.first);}
-function sonosPlay(fav,who){const c=cloudCfg();if(!c){toast('Not connected');return;}
-  const room=DB.settings().masterSonosRoom||'';
-  if(!room){toast('No active Sonos room set — pick one in Admin');return;}
+function playerMusic(id){const g=DB.guest(id);if(!g)return;if(!g.sonosFav){toast('No playlist set for '+g.first+' — add it in Admin');return;}openSonosRoomPicker(g.sonosFav,g.first);}
+function sonosPlay(fav,who,rooms){const c=cloudCfg();if(!c){toast('Not connected');return;}
+  if(!rooms||!rooms.length){toast('No speakers selected');return;}
   toast((who?who+': ':'')+'starting music…');
-  fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'play',favorite:fav,room})})
-    .then(r=>r.ok?r.json():Promise.reject()).then(j=>toast(j&&j.ok?('🎵 Playing '+fav):'Music error')).catch(()=>toast('Sonos isn\'t set up yet'));}
+  fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'play',favorite:fav,rooms})})
+    .then(r=>r.ok?r.json():Promise.reject()).then(j=>toast(j&&j.ok?('🎵 Playing '+fav+' — '+j.group):'Music error')).catch(()=>toast('Sonos isn\'t set up yet'));}
+function openSonosRoomPicker(fav,who){
+  loadSonosRooms(function(){
+    const rooms=_sonosRooms||[];
+    if(!rooms.length){toast('No Sonos rooms found — check connection');return;}
+    let saved=null;try{saved=JSON.parse(localStorage.getItem('sonosLastRooms')||'null');}catch(e){}
+    if(!saved||!saved.length){const d=DB.settings().masterSonosRoom;saved=d&&d!=='__ALL__'?[d]:(d==='__ALL__'?rooms.slice():[]);}
+    document.getElementById('modalTitle').textContent='🎵 Pick speakers'+(who?' for '+who:'');
+    document.getElementById('modalBody').innerHTML=
+      '<div class="row" style="margin-bottom:10px"><button class="btn sm ghost" onclick="_sonosPickAll(true)">Select all</button>'
+      +'<button class="btn sm ghost" onclick="_sonosPickAll(false)">Clear</button></div>'
+      +rooms.map(n=>`<label class="ck" style="display:block;margin:6px 0"><input type="checkbox" class="sonosRoomPick" value="${escapeHtml(n)}"${saved.includes(n)?' checked':''}> <span>${escapeHtml(n)}</span></label>`).join('')
+      +'<div class="row" style="margin-top:16px"><button class="btn sm ghost" onclick="closeModal()">Cancel</button>'
+      +`<button class="btn sm navy" onclick="_sonosPickConfirm('${escapeHtml(fav)}','${escapeHtml(who||'')}')">Play</button></div>`;
+    document.getElementById('modal').style.display='flex';
+  });
+}
+function _sonosPickAll(on){document.querySelectorAll('.sonosRoomPick').forEach(cb=>cb.checked=on);}
+function _sonosPickConfirm(fav,who){
+  const rooms=Array.from(document.querySelectorAll('.sonosRoomPick:checked')).map(cb=>cb.value);
+  if(!rooms.length){toast('Pick at least one speaker');return;}
+  localStorage.setItem('sonosLastRooms',JSON.stringify(rooms));
+  closeModal();
+  sonosPlay(fav,who,rooms);
+}
 let _sonosRooms=null,_sonosFavorites=null;
 function loadSonosMeta(cb){if(_sonosRooms&&_sonosFavorites){cb&&cb();return;}const c=cloudCfg();if(!c){cb&&cb();return;}
   fetch(c.url+'/functions/v1/sonos',{method:'POST',headers:{'Content-Type':'application/json','x-kiosk-token':CLOUD_TOKEN},body:JSON.stringify({action:'list'})})
