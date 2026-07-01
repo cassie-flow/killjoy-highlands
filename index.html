@@ -1173,7 +1173,18 @@ function populateLightScenes(selId,current){const sel=document.getElementById(se
   let html=presets.map(p=>`<option value="${p[0]}"${current===p[0]?' selected':''}>${p[1]}</option>`).join('');
   if(extra.length)html+='<optgroup label="Your Govee effects">'+extra.map(n=>`<option value="${escapeHtml(n)}"${current===n?' selected':''}>${escapeHtml(n)}</option>`).join('')+'</optgroup>';
   sel.innerHTML=html;}
-function playerMusic(id){const g=DB.guest(id);if(!g)return;if(!g.sonosFav){toast('No playlist set for '+g.first+' — add it in Admin');return;}openSonosRoomPicker(g.sonosFav,g.first);}
+function playerMusic(id){const g=DB.guest(id);if(!g)return;
+  const favs=(g.sonosFavs&&g.sonosFavs.length)?g.sonosFavs:(g.sonosFav?[g.sonosFav]:[]);
+  if(!favs.length){toast('No playlists set for '+g.first+' — add them in Admin');return;}
+  if(favs.length===1){openSonosRoomPicker(favs[0],g.first);return;}
+  openSonosFavoritePicker(favs,g.first);}
+function openSonosFavoritePicker(favs,who){
+  document.getElementById('modalTitle').textContent='🎵 Pick a playlist'+(who?' for '+who:'');
+  document.getElementById('modalBody').innerHTML=
+    favs.map(f=>`<button class="btn ghost block" style="margin-bottom:8px" onclick="openSonosRoomPicker('${escapeHtml(f)}','${escapeHtml(who||'')}')">${escapeHtml(f)}</button>`).join('')
+    +'<div class="row" style="margin-top:8px"><button class="btn sm ghost" onclick="closeModal()">Cancel</button></div>';
+  document.getElementById('modal').style.display='flex';
+}
 function sonosPlay(fav,who,rooms){const c=cloudCfg();if(!c){toast('Not connected');return;}
   if(!rooms||!rooms.length){toast('No speakers selected');return;}
   toast((who?who+': ':'')+'starting music…');
@@ -1331,15 +1342,15 @@ function editGuest(id){const g=DB.guest(id);const visits=DB.visitsFor(id);
   document.getElementById('modalBody').innerHTML=`
     <div style="text-align:center">${face(g,72)}</div>
     ${g.photoOptOut?'<div style="text-align:center"><span class="flag">📷🚫 Photo opt-out — do NOT film</span></div>':''}
-    <label>Replace avatar with real photo</label><input type="file" accept="image/*" onchange="uploadPhoto('${id}',this)">
     <div class="row"><div><label>First</label><input id="eF" value="${g.first||''}"></div><div><label>Last</label><input id="eL" value="${g.last||''}"></div></div>
     <label>DOB</label><input type="date" id="eD" value="${g.dob||''}">
     <label>Phone</label><input id="eP" value="${g.phone||''}">
     <label>Email</label><input id="eE" value="${g.email||''}">
-    <label>Emergency contact</label><input id="eEm" value="${g.emergency||''}">
     <div class="row"><div><label>Gender (leaderboards)</label><select id="eG"><option value=""${!g.gender?' selected':''}>Prefer not to say</option><option value="M"${g.gender==='M'?' selected':''}>Male</option><option value="F"${g.gender==='F'?' selected':''}>Female</option></select></div><div><label>Minor</label><select id="eMin"><option value="no"${!g.isMinor?' selected':''}>Adult (18+)</option><option value="yes"${g.isMinor?' selected':''}>Under 18</option></select></div></div>
     <label class="ck" style="margin-top:8px"><input type="checkbox" id="eRoom"${g.roomControls?' checked':''}> <span>Allow <b>room controls</b> (music &amp; lights) for this player</span></label>
-    <div class="row"><div><label>Preferred light scene</label><select id="eLight"><option value="${g.lightScene||'play'}" selected>${g.lightScene||'play'}</option></select></div><div><label>Sonos Favorite (playlist)</label><select id="eSonos"><option value="${g.sonosFav||''}" selected>${g.sonosFav||'— none —'}</option></select></div></div>
+    <label>Preferred light scene</label><select id="eLight"><option value="${g.lightScene||'play'}" selected>${g.lightScene||'play'}</option></select>
+    <label style="margin-top:8px">Sonos Favorites (playlists this player can pick from)</label>
+    <div id="eSonosFavList" style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;max-height:140px;overflow-y:auto"></div>
     <div class="note">Best carry: <b>${bestC!=null?bestC+' yds':'—'}</b> • Best total: <b>${bestT!=null?bestT+' yds':'—'}</b> • Visits: <b>${visits.length}</b> • Waiver: <b>${g.waiverVer===DB.settings().waiverVer?'Signed '+(g.waiverDate||''):'Not current'}</b>${g.isMinor?` • Guardian: <b>${escapeHtml(g.guardianName||'—')}${g.guardianRelation?' ('+escapeHtml(g.guardianRelation)+')':''}</b>`:''}</div>
     ${g.waiverSig?`<label>Signature on file (v${g.waiverVer}, ${g.waiverDate})</label><img src="${g.waiverSig}" style="width:100%;max-height:120px;object-fit:contain;border:1px solid var(--line);border-radius:8px;background:#fff">`:''}
     ${(g.waiverSignings&&g.waiverSignings.length)?`<button class="btn sm ghost block" style="margin-top:10px" onclick="viewWaiverRecord('${id}')">📄 View signed waiver record (${g.waiverSignings.length})</button>`:''}
@@ -1353,13 +1364,15 @@ function editGuest(id){const g=DB.guest(id);const visits=DB.visitsFor(id);
       <button class="btn sm navy" onclick="saveGuestEdit('${id}')">Save</button></div>`;
   document.getElementById('modal').style.display='flex';
   loadGoveeEffects(function(){populateLightScenes('eLight',g.lightScene||'play');});
-  loadSonosFavorites(function(){populateSonosFavorites('eSonos',g.sonosFav||'');});}
-function uploadPhoto(id,input){const f=input.files[0];if(!f)return;const r=new FileReader();
-  r.onload=e=>{DB.updateGuest(id,{photo:e.target.result});editGuest(id);renderGuests();};r.readAsDataURL(f);}
-function saveGuestEdit(id){DB.updateGuest(id,{first:document.getElementById('eF').value.trim(),last:document.getElementById('eL').value.trim(),
-  dob:document.getElementById('eD').value,phone:document.getElementById('eP').value.trim(),email:document.getElementById('eE').value.trim(),emergency:document.getElementById('eEm').value.trim(),
+  loadSonosFavorites(function(){populateSonosFavoritesMulti('eSonosFavList',g.sonosFavs||(g.sonosFav?[g.sonosFav]:[]));});}
+function populateSonosFavoritesMulti(containerId,current){const el=document.getElementById(containerId);if(!el)return;const favs=_sonosFavorites||[];
+  const all=[...new Set([...favs,...(current||[])])];
+  el.innerHTML=all.length?all.map(n=>`<label class="ck" style="display:block;margin:4px 0"><input type="checkbox" class="eSonosFavPick" value="${escapeHtml(n)}"${(current||[]).includes(n)?' checked':''}> <span>${escapeHtml(n)}</span></label>`).join(''):'<span class="muted small">No Sonos Favorites found yet</span>';}
+function saveGuestEdit(id){const sonosFavs=Array.from(document.querySelectorAll('.eSonosFavPick:checked')).map(cb=>cb.value);
+  DB.updateGuest(id,{first:document.getElementById('eF').value.trim(),last:document.getElementById('eL').value.trim(),
+  dob:document.getElementById('eD').value,phone:document.getElementById('eP').value.trim(),email:document.getElementById('eE').value.trim(),
   gender:document.getElementById('eG').value,isMinor:document.getElementById('eMin').value==='yes',
-  roomControls:document.getElementById('eRoom').checked,lightScene:document.getElementById('eLight').value,sonosFav:document.getElementById('eSonos').value.trim()});closeModal();renderGuests();}
+  roomControls:document.getElementById('eRoom').checked,lightScene:document.getElementById('eLight').value,sonosFavs});closeModal();renderGuests();}
 function closeModal(){document.getElementById('modal').style.display='none';}
 function renderAdminHere(){autoSignOut();const open=DB.openVisits();const wrap=document.getElementById('adminHere');wrap.innerHTML='';
   document.getElementById('adminHereEmpty').style.display=open.length?'none':'block';
